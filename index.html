@@ -1,0 +1,1469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>WFH Compliance Checker · Ideas2IT</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ══════════════════════════════════════════════
+   TOKENS
+══════════════════════════════════════════════ */
+:root {
+  --bg:        #0D1B2A;
+  --surface:   #132236;
+  --card:      #1A2E45;
+  --card2:     #1F3550;
+  --border:    #243F5C;
+  --accent:    #00C9B1;
+  --amber:     #F5A623;
+  --red:       #FF5A5F;
+  --green:     #2ECC71;
+  --purple:    #A78BFA;
+  --cyan:      #38BDF8;
+  --text:      #E8F0F7;
+  --muted:     #7A99B8;
+  --radius:    10px;
+  --rsm:       6px;
+  --font:      'Inter','Segoe UI',sans-serif;
+  --mono:      'JetBrains Mono','Fira Mono',monospace;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;line-height:1.5;font-size:14px}
+
+/* ── Header ── */
+header{padding:20px 40px 16px;border-bottom:1px solid var(--border);background:var(--surface);display:flex;align-items:center;gap:14px}
+.logo{width:40px;height:40px;border-radius:var(--rsm);flex-shrink:0;background:linear-gradient(135deg,var(--accent),#007A8A);display:flex;align-items:center;justify-content:center;font-size:18px}
+header h1{font-size:18px;font-weight:700;letter-spacing:-.3px}
+header p{font-size:12px;color:var(--muted);margin-top:1px}
+#hdr-right{margin-left:auto;text-align:right;font-size:12px;color:var(--muted);line-height:1.9}
+#hdr-right strong{color:var(--accent);font-size:13px}
+
+/* ── Reload bar ── */
+#reload-bar{display:none;background:var(--surface);border-bottom:1px solid var(--border);padding:8px 40px;align-items:center;gap:12px;flex-wrap:wrap}
+.fname-pill{font-family:var(--mono);font-size:11px;color:var(--text);background:var(--card);border:1px solid var(--border);border-radius:4px;padding:2px 8px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.btn-reload{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;font-size:12px;font-weight:600;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--accent);background:rgba(0,201,177,.1);color:var(--accent);transition:all .15s;white-space:nowrap}
+.btn-reload:hover{background:rgba(0,201,177,.2)}
+.btn-save-bundle{display:inline-flex;align-items:center;gap:5px;padding:5px 13px;font-size:12px;font-weight:600;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--purple);background:rgba(167,139,250,.1);color:var(--purple);transition:all .15s;white-space:nowrap}
+.btn-save-bundle:hover{background:rgba(167,139,250,.2)}
+.rsep{width:1px;height:18px;background:var(--border)}
+.exemption-count-pill{font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:rgba(167,139,250,.15);border:1px solid rgba(167,139,250,.3);color:var(--purple)}
+
+/* ── Main ── */
+main{max-width:1340px;margin:0 auto;padding:28px 40px 60px}
+
+/* ── Upload ── */
+#upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:52px 40px;text-align:center;cursor:pointer;background:var(--surface);transition:border-color .2s,background .2s}
+#upload-zone:hover,#upload-zone.drag-over{border-color:var(--accent);background:rgba(0,201,177,.05)}
+#upload-zone .icon{font-size:40px;margin-bottom:14px}
+#upload-zone h2{font-size:17px;font-weight:600;margin-bottom:6px}
+#upload-zone p{font-size:12px;color:var(--muted)}
+#file-input,#file-input-reload{display:none}
+.btn-browse{display:inline-block;margin-top:18px;padding:9px 22px;background:var(--accent);color:#0D1B2A;font-weight:700;font-size:12px;border-radius:var(--rsm);cursor:pointer;border:none;transition:opacity .2s}
+.btn-browse:hover{opacity:.85}
+.fmt-tags{margin-top:20px;display:flex;gap:6px;flex-wrap:wrap;justify-content:center}
+.ftag{font-size:11px;font-family:var(--mono);background:var(--card);border:1px solid var(--border);border-radius:20px;padding:2px 10px;color:var(--muted)}
+
+/* ── Error / Loader ── */
+#error-box{display:none;background:rgba(255,90,95,.1);border:1px solid rgba(255,90,95,.3);border-radius:var(--radius);padding:14px 18px;color:var(--red);font-size:13px;margin-top:16px}
+#loader{display:none;text-align:center;padding:40px;color:var(--muted);font-size:13px}
+.spinner{width:30px;height:30px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Period bar ── */
+#period-bar{display:none;margin-top:22px;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 22px;gap:20px;flex-wrap:wrap;align-items:center}
+.pi{display:flex;flex-direction:column;gap:2px}
+.pi .lbl{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
+.pi .val{font-size:14px;font-weight:700}
+.pi .val.a{color:var(--accent)}
+.pdiv{width:1px;height:32px;background:var(--border)}
+
+/* ── Week strip ── */
+#week-strip{display:none;margin-top:16px}
+.ws-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.6px;margin-bottom:8px}
+.weeks-row{display:flex;gap:8px;flex-wrap:wrap}
+.wchip{border-radius:var(--rsm);border:1px solid var(--border);padding:8px 12px;background:var(--card);min-width:120px}
+.wchip .wl{font-weight:700;font-size:10px;color:var(--muted);text-transform:uppercase;margin-bottom:3px}
+.wchip .wr{font-size:11px;color:var(--text)}
+.wchip .ws{font-size:10px;margin-top:4px}
+.wchip.past{border-color:var(--border)}
+.wchip.current{border-color:var(--accent);box-shadow:0 0 0 1px rgba(0,201,177,.25)}
+.wchip.future{opacity:.45}
+.bs-past{color:var(--muted)} .bs-current{color:var(--accent)} .bs-future{color:var(--muted)}
+
+/* ── Stats ── */
+#stats-bar{display:none;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:16px}
+.sc{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px}
+.sc .sl{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:5px}
+.sc .sv{font-size:26px;font-weight:800;line-height:1}
+.sc .ss{font-size:11px;color:var(--muted);margin-top:3px}
+.sv.red{color:var(--red)} .sv.green{color:var(--green)} .sv.amber{color:var(--amber)} .sv.teal{color:var(--accent)} .sv.purple{color:var(--purple)} .sv.cyan{color:var(--cyan)} .sv.white{color:var(--text)}
+
+/* ── Permanent WFH ── */
+.perm-row td{opacity:.55}
+.perm-row:hover td{opacity:.75}
+.perm-row .name-cell{color:var(--muted)}
+.btn-perm{padding:3px 10px;font-size:11px;font-weight:600;border-radius:20px;cursor:pointer;border:1px solid rgba(56,189,248,.4);background:transparent;color:var(--cyan);transition:all .15s;white-space:nowrap}
+.btn-perm:hover{background:rgba(56,189,248,.1)}
+.btn-perm.is-perm{background:rgba(56,189,248,.15);border-color:var(--cyan)}
+.btn-revoke-perm{padding:2px 8px;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid rgba(255,90,95,.3);background:transparent;color:var(--red);transition:all .15s}
+.btn-revoke-perm:hover{background:rgba(255,90,95,.1)}
+.perm-panel{padding:14px 16px;background:rgba(56,189,248,.04);border-top:1px solid rgba(56,189,248,.2)}
+.perm-panel-title{font-size:11px;font-weight:700;color:var(--cyan);text-transform:uppercase;letter-spacing:.5px;margin-bottom:10px}
+.perm-info{font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6}
+.perm-record{display:flex;align-items:center;gap:10px;background:rgba(56,189,248,.07);border:1px solid rgba(56,189,248,.2);border-radius:var(--rsm);padding:8px 12px;font-size:12px}
+.perm-record-body{flex:1}
+.perm-record-name{font-weight:600;color:var(--cyan)}
+.perm-record-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.perm-fields{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.dot.c{background:var(--cyan)}
+
+/* ── Results ── */
+#results{display:none;margin-top:8px}
+
+/* ── Export row ── */
+.export-row{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;margin-top:18px}
+.btn-exp{display:inline-flex;align-items:center;gap:5px;padding:8px 16px;font-size:12px;font-weight:600;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--text);transition:all .15s}
+.btn-exp:hover{border-color:var(--accent);color:var(--accent)}
+
+/* ── Section header ── */
+.sh{display:flex;align-items:center;gap:8px;margin-bottom:10px;margin-top:26px}
+.sh h2{font-size:15px;font-weight:700}
+.cbadge{font-size:11px;font-weight:700;padding:1px 9px;border-radius:20px}
+.cbadge.red   {background:rgba(255,90,95,.15);color:var(--red);border:1px solid rgba(255,90,95,.3)}
+.cbadge.green {background:rgba(46,204,113,.15);color:var(--green);border:1px solid rgba(46,204,113,.3)}
+.cbadge.purple{background:rgba(167,139,250,.15);color:var(--purple);border:1px solid rgba(167,139,250,.3)}
+.cbadge.cyan  {background:rgba(56,189,248,.12);color:var(--cyan);border:1px solid rgba(56,189,248,.3)}
+
+/* ── PM filter ── */
+.pm-filters{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.pmf{padding:4px 12px;font-size:11px;font-weight:600;border-radius:20px;border:1px solid var(--border);background:var(--card);color:var(--muted);cursor:pointer;transition:all .15s}
+.pmf:hover{border-color:var(--accent);color:var(--accent)}
+.pmf.active{border-color:var(--accent);color:var(--accent);background:rgba(0,201,177,.08)}
+.pmf.unassigned{border-color:rgba(245,166,35,.4);color:var(--amber)}
+.pmf.unassigned.active{border-color:var(--amber);color:var(--amber);background:rgba(245,166,35,.1)}
+
+/* ── Search ── */
+.search-row{display:flex;gap:8px;margin-bottom:10px;align-items:center;flex-wrap:wrap}
+.si{flex:1;min-width:160px;background:var(--card);border:1px solid var(--border);border-radius:var(--rsm);color:var(--text);padding:7px 12px;font-size:12px;outline:none;font-family:var(--font);transition:border-color .2s}
+.si::placeholder{color:var(--muted)} .si:focus{border-color:var(--accent)}
+.row-count{font-size:11px;color:var(--muted);white-space:nowrap}
+
+/* ── Table ── */
+.tw{border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;background:var(--card);margin-bottom:4px}
+table{width:100%;border-collapse:collapse;font-size:12px;table-layout:auto}
+thead th{background:var(--surface);padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);font-weight:600;white-space:nowrap;border-bottom:1px solid var(--border)}
+tbody tr{border-bottom:1px solid rgba(36,63,92,.5);transition:background .12s}
+tbody tr:last-child{border-bottom:none}
+tbody tr:hover{background:rgba(0,201,177,.03)}
+td{padding:8px 10px;vertical-align:middle}
+.name-cell{font-weight:600;color:var(--text);white-space:nowrap}
+.mono{font-family:var(--mono);font-size:11px}
+.muted-t{color:var(--muted)}
+
+/* ── Pills ── */
+.pill{display:inline-flex;align-items:center;gap:4px;font-size:10px;font-weight:700;padding:2px 8px;border-radius:20px}
+.pill.viol  {background:rgba(255,90,95,.12);border:1px solid rgba(255,90,95,.25);color:var(--red)}
+.pill.ok    {background:rgba(46,204,113,.1);border:1px solid rgba(46,204,113,.2);color:var(--green)}
+.pill.warn  {background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.2);color:var(--amber)}
+.pill.exempt{background:rgba(167,139,250,.12);border:1px solid rgba(167,139,250,.3);color:var(--purple)}
+.pill.partial{background:rgba(255,90,95,.08);border:1px solid rgba(255,90,95,.2);color:var(--amber)}
+.pill.perm  {background:rgba(56,189,248,.1);border:1px solid rgba(56,189,248,.3);color:var(--cyan)}
+
+/* ── Banners ── */
+.no-pm-banner{display:flex;align-items:center;gap:10px;background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:var(--rsm);padding:10px 14px;margin-bottom:12px;font-size:12px;color:var(--amber)}
+.no-pm-banner strong{font-weight:700}
+
+/* ── Exemption inline form ── */
+.ex-row{background:rgba(10,21,32,.6);border-top:1px solid var(--border)}
+.ex-row td{padding:0!important}
+.ex-panel{padding:14px 16px;display:flex;flex-direction:column;gap:10px}
+.ex-panel-title{font-size:11px;font-weight:700;color:var(--purple);text-transform:uppercase;letter-spacing:.5px;margin-bottom:2px}
+.ex-fields{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.ex-field{display:flex;flex-direction:column;gap:4px}
+.ex-field label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted)}
+.ex-input{background:var(--card2);border:1px solid var(--border);border-radius:var(--rsm);color:var(--text);padding:6px 10px;font-size:12px;font-family:var(--font);outline:none;transition:border-color .2s}
+.ex-input:focus{border-color:var(--purple)}
+.ex-input.wide{min-width:220px}
+.ex-input.narrow{width:80px}
+.ex-input.date{width:130px}
+.btn-add-ex{padding:6px 16px;font-size:12px;font-weight:700;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--purple);background:rgba(167,139,250,.15);color:var(--purple);transition:all .15s;white-space:nowrap}
+.btn-add-ex:hover{background:rgba(167,139,250,.28)}
+.btn-cancel-ex{padding:6px 12px;font-size:12px;font-weight:600;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s}
+.btn-cancel-ex:hover{border-color:var(--red);color:var(--red)}
+
+/* ── Existing exemptions list ── */
+.ex-list{display:flex;flex-direction:column;gap:6px;margin-top:6px}
+.ex-item{display:flex;align-items:flex-start;gap:10px;background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.2);border-radius:var(--rsm);padding:8px 12px;font-size:12px}
+.ex-item-body{flex:1}
+.ex-item-reason{font-weight:600;color:var(--purple)}
+.ex-item-meta{font-size:11px;color:var(--muted);margin-top:2px}
+.ex-item-days{font-family:var(--mono);font-weight:700;color:var(--accent);font-size:13px;white-space:nowrap}
+.btn-del-ex{padding:2px 8px;font-size:11px;font-weight:600;border-radius:4px;cursor:pointer;border:1px solid rgba(255,90,95,.3);background:transparent;color:var(--red);transition:all .15s;white-space:nowrap;flex-shrink:0}
+.btn-del-ex:hover{background:rgba(255,90,95,.1)}
+
+/* ── Add exemption button in table ── */
+.btn-open-ex{padding:3px 10px;font-size:11px;font-weight:600;border-radius:20px;cursor:pointer;border:1px solid rgba(167,139,250,.35);background:transparent;color:var(--purple);transition:all .15s;white-space:nowrap}
+.btn-open-ex:hover{background:rgba(167,139,250,.12)}
+.btn-open-ex.has-ex{border-color:var(--purple);background:rgba(167,139,250,.12)}
+
+/* ── WFH count cell ── */
+.wfh-cell{display:flex;flex-direction:column;align-items:center;gap:2px}
+.wfh-main{font-family:var(--mono);font-weight:700;font-size:13px}
+.wfh-sub{font-size:10px;color:var(--muted);white-space:nowrap}
+
+/* ── Excess badge ── */
+.excess{font-family:var(--mono);font-size:11px;font-weight:700;color:var(--red)}
+.pm-unassigned{color:var(--amber);font-size:11px;display:inline-flex;align-items:center;gap:3px}
+
+/* ── Legend ── */
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--muted);margin-bottom:10px}
+.li{display:flex;align-items:center;gap:5px}
+.dot{width:8px;height:8px;border-radius:50%}
+.dot.r{background:var(--red)} .dot.g{background:var(--green)} .dot.p{background:var(--purple)} .dot.a{background:var(--amber)}
+
+/* ── Tooltip ── */
+[data-tip]{position:relative;cursor:help}
+[data-tip]:hover::after{content:attr(data-tip);position:absolute;bottom:calc(100% + 5px);left:50%;transform:translateX(-50%);background:#0A1520;border:1px solid var(--border);color:var(--text);font-size:10px;padding:4px 8px;border-radius:4px;white-space:nowrap;z-index:99;pointer-events:none}
+
+/* ── Settings modal ── */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:28px 32px;width:540px;max-width:95vw;box-shadow:0 24px 60px rgba(0,0,0,.5)}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:6px}
+.modal-desc{font-size:12px;color:var(--muted);margin-bottom:20px;line-height:1.7}
+.modal-field{display:flex;flex-direction:column;gap:6px;margin-bottom:14px}
+.modal-field label{font-size:10px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);font-weight:600}
+.modal-input{background:var(--card);border:1px solid var(--border);border-radius:var(--rsm);color:var(--text);padding:9px 12px;font-size:12px;font-family:var(--mono);outline:none;width:100%;transition:border-color .2s}
+.modal-input:focus{border-color:var(--accent)}
+.modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:18px}
+.btn-primary{padding:8px 20px;font-size:13px;font-weight:700;border-radius:var(--rsm);cursor:pointer;border:none;background:var(--accent);color:#0D1B2A;transition:opacity .15s}
+.btn-primary:hover{opacity:.85}
+.btn-secondary{padding:8px 16px;font-size:13px;font-weight:600;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);transition:all .15s}
+.btn-secondary:hover{border-color:var(--text);color:var(--text)}
+.url-status{font-size:11px;margin-top:5px;min-height:15px}
+.url-ok{color:var(--green)} .url-err{color:var(--red)} .url-warn{color:var(--amber)}
+.btn-settings{display:inline-flex;align-items:center;gap:5px;padding:5px 12px;font-size:12px;font-weight:600;border-radius:var(--rsm);cursor:pointer;border:1px solid var(--border);background:var(--card);color:var(--muted);transition:all .15s}
+.btn-settings:hover{border-color:var(--accent);color:var(--accent)}
+
+@media(max-width:900px){
+  main{padding:20px 14px 40px}
+  header{padding:16px 14px;flex-wrap:wrap}
+  #hdr-right{display:none}
+  #stats-bar{grid-template-columns:repeat(3,1fr)}
+  #reload-bar{padding:8px 14px}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🏠</div>
+  <div>
+    <h1>WFH Compliance Checker</h1>
+    <p>Monthly consolidated report · Ideas2IT · IST-aware policy engine</p>
+  </div>
+  <div id="hdr-right">
+    <button class="btn-settings" onclick="openSettings()" style="margin-bottom:4px">⚙ Settings</button>
+  </div>
+</header>
+
+<div id="reload-bar">
+  <span style="font-size:12px;color:var(--muted)">Loaded:</span>
+  <span id="loaded-fname" class="fname-pill">—</span>
+  <div class="rsep"></div>
+  <span id="exemption-tally" class="exemption-count-pill" style="display:none"></span>
+  <div class="rsep" id="ex-tally-sep" style="display:none"></div>
+  <span id="perm-tally" style="display:none;font-size:11px;font-weight:700;padding:2px 9px;border-radius:20px;background:rgba(56,189,248,.12);border:1px solid rgba(56,189,248,.3);color:var(--cyan)"></span>
+  <div class="rsep" id="perm-tally-sep" style="display:none"></div>
+  <label class="btn-reload" for="file-input-reload">⬆ Load New File</label>
+  <input type="file" id="file-input-reload" accept=".xlsx,.xls,.csv" />
+  <button class="btn-settings" onclick="openSettings()">⚙ Settings</button>
+  <button class="btn-save-bundle" onclick="saveBundle()">💾 Export Tool</button>
+  <span id="sync-badge" style="font-size:11px;color:var(--muted)"></span>
+  <span style="font-size:11px;color:var(--muted)" id="reload-hint"></span>
+</div>
+
+<!-- Settings Modal -->
+<div id="settings-modal" class="modal-overlay" style="display:none" onclick="if(event.target===this)closeSettings()">
+  <div class="modal">
+    <h3>⚙ Settings — Google Sheet Connection</h3>
+    <p class="modal-desc">
+      Paste your Apps Script Web App URL below. This is saved in your browser and never lost when the app updates.
+      <br>Each PM does this once on their own machine.
+    </p>
+    <div class="modal-field">
+      <label>Apps Script Web App URL</label>
+      <input class="modal-input" id="settings-url-input" placeholder="https://script.google.com/macros/s/.../exec" />
+      <div class="url-status" id="url-status-msg"></div>
+    </div>
+    <div class="modal-field">
+      <label>Your Name (PM) — saved for exemption entries</label>
+      <input class="modal-input" id="settings-pm-input" placeholder="e.g. Tamil Selvi" style="font-family:var(--font)" />
+    </div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeSettings()">Cancel</button>
+      <button class="btn-secondary" onclick="testSheetConnection()" style="border-color:var(--amber);color:var(--amber)">Test Connection</button>
+      <button class="btn-primary" onclick="saveSettings()">Save Settings</button>
+    </div>
+  </div>
+</div>
+
+<main>
+  <div id="upload-zone" onclick="document.getElementById('file-input').click()">
+    <div class="icon">📊</div>
+    <h2>Drop your consolidated attendance report here</h2>
+    <p>Drag & drop or click to browse · Supports .xlsx and .csv</p>
+    <label class="btn-browse" onclick="event.stopPropagation();document.getElementById('file-input').click()">Choose File</label>
+    <div class="fmt-tags">
+      <span class="ftag">Employee ID</span><span class="ftag">Name</span>
+      <span class="ftag">Home (WFH days)</span><span class="ftag">Office days</span>
+      <span class="ftag">Leave</span><span class="ftag">Total Hours</span>
+      <span class="ftag">Project Manager</span>
+    </div>
+    <input type="file" id="file-input" accept=".xlsx,.xls,.csv" />
+  </div>
+
+  <div id="error-box"></div>
+  <div id="loader"><div class="spinner"></div>Analysing WFH data…</div>
+  <div id="period-bar"  style="display:none"></div>
+  <div id="week-strip"  style="display:none"></div>
+  <div id="stats-bar"   style="display:none"></div>
+  <div id="results"     style="display:none"></div>
+</main>
+
+<script>
+/* ══════════════════════════════════════════════
+   GOOGLE SHEETS BACKEND
+   Sheet URL is stored in localStorage — never hardcoded.
+   Each PM enters it once via the Settings screen.
+   Key: 'wfh_sheet_url'
+══════════════════════════════════════════════ */
+function getSheetURL() {
+  return (localStorage.getItem('wfh_sheet_url') || '').trim();
+}
+function setSheetURL(url) {
+  localStorage.setItem('wfh_sheet_url', url.trim());
+}
+
+/* ── Settings modal ── */
+function openSettings() {
+  document.getElementById('settings-url-input').value = getSheetURL();
+  document.getElementById('settings-pm-input').value  = sessionStorage.getItem('lastPMName') || '';
+  document.getElementById('url-status-msg').textContent = '';
+  document.getElementById('settings-modal').style.display = 'flex';
+}
+function closeSettings() {
+  document.getElementById('settings-modal').style.display = 'none';
+}
+function saveSettings() {
+  const url  = document.getElementById('settings-url-input').value.trim();
+  const name = document.getElementById('settings-pm-input').value.trim();
+  if (url && !url.startsWith('https://script.google.com')) {
+    document.getElementById('url-status-msg').innerHTML = '<span class="url-err">⚠ URL should start with https://script.google.com/…</span>';
+    return;
+  }
+  setSheetURL(url);
+  if (name) sessionStorage.setItem('lastPMName', name);
+  updateSyncBadge();
+  closeSettings();
+  // If a file is already loaded, re-sync now with new URL
+  if (_result) {
+    syncFromSheet(_result.year, _result.month).then(() => reRender());
+  }
+}
+async function testSheetConnection() {
+  const url = document.getElementById('settings-url-input').value.trim();
+  const msg = document.getElementById('url-status-msg');
+  if (!url) { msg.innerHTML = '<span class="url-err">Please enter a URL first.</span>'; return; }
+  msg.innerHTML = '<span class="url-warn">⟳ Testing…</span>';
+  try {
+    const data = await jsonpCall(url, { action: 'read', monthKey: 'test' });
+    if (data.ok !== undefined) {
+      msg.innerHTML = '<span class="url-ok">✓ Connected! Sheet is reachable.</span>';
+    } else {
+      throw new Error('Unexpected response');
+    }
+  } catch(e) {
+    msg.innerHTML = `<span class="url-err">✗ Could not connect: ${e.message}</span>`;
+  }
+}
+
+/* ── Show settings on first ever open (no URL saved yet) ── */
+window.addEventListener('DOMContentLoaded', () => {
+  if (!getSheetURL()) {
+    // Slight delay so the page renders first
+    setTimeout(openSettings, 600);
+  }
+  updateSyncBadge();
+});
+
+/* ── In-memory stores (synced from Sheet on load) ── */
+let _exemptions = {};
+let _permWFH    = {};
+let _sheetReady = false;
+let _syncStatus = 'idle'; // idle | loading | ok | error | offline
+
+/* ── JSONP call — only way that reliably bypasses CORS for Apps Script ── */
+function jsonpCall(url, params) {
+  return new Promise((resolve, reject) => {
+    const cbName = '_wfhcb_' + Date.now();
+    const timeout = setTimeout(() => {
+      delete window[cbName];
+      script.remove();
+      reject(new Error('Request timed out after 15s'));
+    }, 15000);
+
+    window[cbName] = (data) => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      script.remove();
+      resolve(data);
+    };
+
+    const allParams = { ...params, callback: cbName, t: Date.now() };
+    const qs = Object.entries(allParams)
+      .map(([k,v]) => encodeURIComponent(k) + '=' + encodeURIComponent(String(v ?? '')))
+      .join('&');
+
+    const script = document.createElement('script');
+    script.src = url + '?' + qs;
+    script.onerror = () => {
+      clearTimeout(timeout);
+      delete window[cbName];
+      reject(new Error('Script load failed'));
+    };
+    document.head.appendChild(script);
+  });
+}
+
+/* ── Sheet sync ── */
+async function syncFromSheet(year, month) {
+  const SHEET_URL = getSheetURL();
+  if (!SHEET_URL) { _syncStatus = 'offline'; updateSyncBadge(); return; }
+  _syncStatus = 'loading'; updateSyncBadge();
+  try {
+    const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
+    const data = await jsonpCall(SHEET_URL, { action: 'read', monthKey });
+    if (!data.ok) throw new Error(data.error || 'Sheet returned error');
+    _exemptions = data.exemptions || {};
+    _permWFH    = data.permWFH    || {};
+    _sheetReady = true;
+    _syncStatus = 'ok';
+    updateSyncBadge();
+  } catch(err) {
+    console.warn('Sheet sync failed:', err.message);
+    _syncStatus = 'error';
+    updateSyncBadge();
+  }
+}
+
+/* ── Sheet write ── */
+async function sheetPost(payload) {
+  const SHEET_URL = getSheetURL();
+  if (!SHEET_URL) return;
+  try {
+    const data = await jsonpCall(SHEET_URL, payload);
+    if (!data.ok) throw new Error(data.error || 'Write failed');
+    const now = nowIST();
+    await syncFromSheet(now.getFullYear(), now.getMonth());
+    updateSyncBadge();
+  } catch(err) {
+    console.error('Sheet write error:', err.message);
+    _syncStatus = 'error';
+    updateSyncBadge();
+    alert('Could not save to Google Sheet.\n\nError: ' + err.message);
+  }
+}
+
+function updateSyncBadge() {
+  const el = document.getElementById('sync-badge');
+  if (!el) return;
+  const map = {
+    idle:    ['', ''],
+    loading: ['⟳ Syncing…',        'color:var(--muted)'],
+    ok:      ['● Sheet live',       'color:var(--green)'],
+    error:   ['⚠ Sheet unreachable','color:var(--amber)'],
+    offline: ['◌ Offline mode',     'color:var(--muted)'],
+  };
+  const [txt, style] = map[_syncStatus] || ['',''];
+  el.textContent = txt;
+  el.setAttribute('style', `font-size:11px;${style}`);
+}
+
+/* ══════════════════════════════════════════════
+   EXEMPTION HELPERS  (write-through to Sheet)
+══════════════════════════════════════════════ */
+function exemptionKey(empId, year, month) {
+  return `${empId}|${year}-${String(month+1).padStart(2,'0')}`;
+}
+function getExemptions(empId, year, month) {
+  return _exemptions[exemptionKey(empId, year, month)] || [];
+}
+function totalApprovedDays(empId, year, month) {
+  return getExemptions(empId, year, month).reduce((s, e) => s + Number(e.days), 0);
+}
+
+/* ── Permanent WFH helpers ── */
+function isPermWFH(empId)       { return !!_permWFH[empId]; }
+function getPermRecord(empId)   { return _permWFH[empId] || null; }
+
+/* ══════════════════════════════════════════════
+   IST / DATE HELPERS
+══════════════════════════════════════════════ */
+function nowIST() {
+  return new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Calcutta' }));
+}
+function fmtDate(d) {
+  return d.toLocaleDateString('en-IN', { day:'2-digit', month:'short' });
+}
+function addDays(d, n) { const r=new Date(d); r.setDate(r.getDate()+n); return r; }
+function weekMonday(d) {
+  const c=new Date(d); c.setDate(d.getDate()-((d.getDay()+6)%7)); c.setHours(0,0,0,0); return c;
+}
+function workingDays(from, to) {
+  let count=0, d=new Date(from);
+  while(d<=to){ if(d.getDay()>=1&&d.getDay()<=5) count++; d=addDays(d,1); }
+  return count;
+}
+function buildWeeks(year, month) {
+  const first=new Date(year,month,1), last=new Date(year,month+1,0);
+  const weeks=[];
+  let cur=weekMonday(first);
+  while(cur<=last){ weeks.push({mon:new Date(cur),sun:addDays(cur,6)}); cur=addDays(cur,7); }
+  return weeks;
+}
+
+/* ══════════════════════════════════════════════
+   WFH ALLOWANCE — Wed + Fri logic
+   Per week: count Wednesdays + Fridays that fall
+   within that week AND within the month boundary.
+   soFarCap = sum of Wed+Fri that have passed today.
+   totalCap = sum across the whole month.
+══════════════════════════════════════════════ */
+function buildWFHCalendar(year, month) {
+  const weeks      = buildWeeks(year, month);
+  const monthStart = new Date(year, month, 1);
+  const monthEnd   = new Date(year, month+1, 0);
+  const now        = nowIST();
+  const today      = new Date(year, month, now.getDate());
+
+  let totalCap = 0;
+  let soFarCap = 0;
+  const taggedWeeks = [];
+
+  weeks.forEach((w, i) => {
+    // Clamp week to month boundaries
+    const wStart = w.mon < monthStart ? new Date(monthStart) : new Date(w.mon);
+    const wEnd   = w.sun > monthEnd   ? new Date(monthEnd)   : new Date(w.sun);
+
+    let weekCap = 0, soFarThisWeek = 0;
+    for (let d = new Date(wStart); d <= wEnd; d = addDays(d, 1)) {
+      const dow = d.getDay();
+      if (dow === 3 || dow === 5) {  // Wednesday=3, Friday=5
+        weekCap++;
+        if (d <= today) soFarThisWeek++;
+      }
+    }
+
+    totalCap += weekCap;
+
+    const wEndClamped = new Date(wEnd);
+    let status;
+    if (wEndClamped < today)       status = 'past';
+    else if (wStart <= today)      status = 'current';
+    else                           status = 'future';
+
+    if (status === 'past')    soFarCap += weekCap;
+    if (status === 'current') soFarCap += soFarThisWeek;
+
+    taggedWeeks.push({
+      mon: new Date(w.mon), sun: new Date(w.sun),
+      wStart, wEnd,
+      idx: i + 1, status,
+      weekCap, soFarThisWeek,
+    });
+  });
+
+  return { taggedWeeks, totalCap, soFarCap };
+}
+
+/* ══════════════════════════════════════════════
+   COLUMN DETECTION
+══════════════════════════════════════════════ */
+function detectCols(headers) {
+  const h=headers.map(x=>String(x||'').toLowerCase().trim());
+  const find=(...kws)=>{ for(const kw of kws){ const i=h.findIndex(x=>x.includes(kw)); if(i!==-1)return i; } return -1; };
+  return {
+    empId:   find('employee id','emp id','empid'),
+    name:    find('name','employee name','emp name'),
+    home:    find('home','wfh','work from home'),
+    office:  find('office','wfo'),
+    client:  find('client place'),
+    leave:   find('leave'),
+    total:   find('total'),
+    pm:      find('project manager','manager'),
+    pmId:    find('manager id'),
+    pmEmail: find('manager email'),
+    project: find('project name','project'),
+    clientName: find('client name'),
+  };
+}
+
+/* ══════════════════════════════════════════════
+   MAIN ANALYSIS  (Wed+Fri allowance logic)
+══════════════════════════════════════════════ */
+function analyse(headers, rows) {
+  const cols = detectCols(headers);
+  if (cols.home === -1) throw new Error('Cannot find a "Home" (WFH days) column.');
+  if (cols.name === -1) throw new Error('Cannot find a Name column.');
+
+  const now   = nowIST();
+  const year  = now.getFullYear();
+  const month = now.getMonth();
+
+  const { taggedWeeks, totalCap, soFarCap } = buildWFHCalendar(year, month);
+  const maxCompliantSoFar   = soFarCap;
+  const effectiveMonthlyCap = totalCap;
+  const completedWeeks      = taggedWeeks.filter(w => w.status === 'past').length;
+  const curWk               = taggedWeeks.find(w => w.status === 'current') || null;
+
+  const people = rows.map(r => {
+    const g  = (ci) => ci !== -1 ? r[headers[ci]] : '';
+    const gn = (ci) => { const v = g(ci); return isNaN(v) ? 0 : Number(v) || 0; };
+    return {
+      empId:      String(g(cols.empId)      || '').trim(),
+      name:       String(g(cols.name)       || '').trim(),
+      home:       gn(cols.home),
+      office:     gn(cols.office),
+      leave:      gn(cols.leave),
+      total:      gn(cols.total),
+      pm:         String(g(cols.pm)         || '-').trim(),
+      pmEmail:    String(g(cols.pmEmail)    || '').trim(),
+      project:    String(g(cols.project)    || '').trim(),
+      clientName: String(g(cols.clientName) || '').trim(),
+    };
+  }).filter(p => p.name && p.name !== '-');
+
+  const permWFHList = [], violators = [], exempted = [], compliant = [];
+  for (const p of people) {
+    if (isPermWFH(p.empId)) {
+      p.approved = 0; p.effectiveHome = p.home; p.excess = 0;
+      p.maxAllowed = maxCompliantSoFar; p.effectiveMonthlyCap = effectiveMonthlyCap;
+      p.permRecord = getPermRecord(p.empId);
+      permWFHList.push(p);
+      continue;
+    }
+    const approved      = totalApprovedDays(p.empId, year, month);
+    const effectiveHome = Math.max(0, p.home - approved);
+    const excess        = effectiveHome - maxCompliantSoFar;
+    p.approved = approved; p.effectiveHome = effectiveHome;
+    p.excess   = excess;   p.maxAllowed    = maxCompliantSoFar;
+    p.effectiveMonthlyCap = effectiveMonthlyCap;
+
+    if (approved > 0 && excess <= 0) exempted.push(p);
+    else if (excess > 0)              violators.push(p);
+    else                              compliant.push(p);
+  }
+
+  violators.sort((a,b) => b.excess - a.excess || a.name.localeCompare(b.name));
+  exempted.sort( (a,b) => b.home   - a.home   || a.name.localeCompare(b.name));
+  compliant.sort((a,b) => b.home   - a.home   || a.name.localeCompare(b.name));
+  permWFHList.sort((a,b) => a.name.localeCompare(b.name));
+
+  return { violators, exempted, compliant, permWFHList,
+           taggedWeeks, maxCompliantSoFar, effectiveMonthlyCap,
+           completedWeeks, curWk, now, year, month };
+}
+
+/* ══════════════════════════════════════════════
+   RENDER
+══════════════════════════════════════════════ */
+let _result=null, _activePm={viol:'all',exempt:'all',comp:'all',perm:'all'};
+
+function render(result) {
+  _result=result;
+  const {violators,exempted,compliant,permWFHList,
+         taggedWeeks,maxCompliantSoFar,effectiveMonthlyCap,
+         completedWeeks,curWk,now,year,month}=result;
+
+  const monthName=now.toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  document.getElementById('hdr-right').innerHTML=
+    `<button class="btn-settings" onclick="openSettings()" style="margin-bottom:4px">⚙ Settings</button>
+     <div style="font-size:12px;color:var(--muted);line-height:1.9;text-align:right">
+       <strong style="color:var(--accent);font-size:13px">${now.toLocaleDateString('en-IN',{weekday:'short',day:'2-digit',month:'short',year:'numeric'})}</strong><br>IST · ${monthName}
+     </div>`;
+
+  /* Period bar */
+  const wedCount = taggedWeeks.filter(w=>w.status!=='future').reduce((s,w)=>{
+    let c=0; for(let d=new Date(w.wStart);d<=w.wEnd;d=addDays(d,1)) if(d.getDay()===3)c++;
+    return s+c;
+  },0);
+  const friCount = taggedWeeks.filter(w=>w.status!=='future').reduce((s,w)=>{
+    let c=0; for(let d=new Date(w.wStart);d<=w.wEnd;d=addDays(d,1)) if(d.getDay()===5)c++;
+    return s+c;
+  },0);
+  document.getElementById('period-bar').style.display='flex';
+  document.getElementById('period-bar').innerHTML=`
+    <div class="pi"><span class="lbl">Report Month</span><span class="val a">${monthName}</span></div>
+    <div class="pdiv"></div>
+    <div class="pi"><span class="lbl">Weeks in Month</span><span class="val">${taggedWeeks.length}</span></div>
+    <div class="pdiv"></div>
+    <div class="pi"><span class="lbl">WFH Days (Wed+Fri)</span><span class="val" data-tip="Wednesdays + Fridays that fall within the month">Wed×${taggedWeeks.reduce((s,w)=>{let c=0;for(let d=new Date(w.wStart);d<=w.wEnd;d=addDays(d,1))if(d.getDay()===3)c++;return s+c;},0)} + Fri×${taggedWeeks.reduce((s,w)=>{let c=0;for(let d=new Date(w.wStart);d<=w.wEnd;d=addDays(d,1))if(d.getDay()===5)c++;return s+c;},0)}</span></div>
+    <div class="pdiv"></div>
+    <div class="pi"><span class="lbl">Allowed So Far</span><span class="val a" data-tip="Wed+Fri that have passed up to today">${maxCompliantSoFar} days</span></div>
+    <div class="pdiv"></div>
+    <div class="pi"><span class="lbl">Full Month Cap</span><span class="val">${effectiveMonthlyCap} days</span></div>
+  `;
+
+  /* Week strip */
+  document.getElementById('week-strip').style.display='block';
+  document.getElementById('week-strip').innerHTML=`<div class="ws-label">${monthName} — WFH Allowance by Week (Wed + Fri)</div><div class="weeks-row">
+    ${taggedWeeks.map(w=>{
+      const end = w.wEnd;
+      const capLabel = w.weekCap===0?'No WFH days':w.weekCap===1?'1 day allowed':'2 days allowed';
+      return `<div class="wchip ${w.status}">
+        <div class="wl">Week ${w.idx}</div>
+        <div class="wr">${fmtDate(w.wStart)} – ${fmtDate(end)}</div>
+        <div class="ws" style="color:var(--accent);font-weight:600">${capLabel}</div>
+        <div class="ws bs-${w.status}">${w.status==='past'?'✓ Completed':w.status==='current'?'▶ In Progress':'⏳ Upcoming'}</div>
+      </div>`;
+    }).join('')}
+  </div>`;
+
+  /* Stats */
+  const allPeople=[...violators,...exempted,...compliant,...permWFHList];
+  const unassignedCount=allPeople.filter(p=>!p.pm||p.pm==='-').length;
+  const totalExemptionCount=Object.keys(_exemptions).filter(k=>k.endsWith(`|${year}-${String(month+1).padStart(2,'0')}`)).reduce((s,k)=>s+_exemptions[k].length,0);
+  const permCount=Object.keys(_permWFH).length;
+
+  document.getElementById('stats-bar').style.display='grid';
+  document.getElementById('stats-bar').innerHTML=`
+    <div class="sc"><div class="sl">Total Employees</div><div class="sv teal">${allPeople.length}</div><div class="ss">in this report</div></div>
+    <div class="sc"><div class="sl">Violations</div><div class="sv red">${violators.length}</div><div class="ss">unresolved excess WFH</div></div>
+    <div class="sc"><div class="sl">Exemption Resolved</div><div class="sv purple">${exempted.length}</div><div class="ss">approved by PM</div></div>
+    <div class="sc"><div class="sl">Compliant</div><div class="sv green">${compliant.length}</div><div class="ss">within policy</div></div>
+    <div class="sc"><div class="sl">Permanent WFH</div><div class="sv cyan">${permWFHList.length}</div><div class="ss">policy-exempt employees</div></div>
+    <div class="sc"><div class="sl">PM Not Assigned</div><div class="sv amber">${unassignedCount}</div><div class="ss">needs to be updated</div></div>
+  `;
+
+  /* Update reload bar tallies */
+  updateExemptionTally(year, month);
+  updatePermTally();
+
+  /* PM list — across ALL employees including perm WFH */
+  const allPMs=[...new Set(allPeople.map(p=>p.pm).filter(p=>p&&p!=='-'))].sort();
+  const hasUnassigned=allPeople.some(p=>!p.pm||p.pm==='-');
+  if(hasUnassigned) allPMs.push('__UNASSIGNED__');
+
+  /* Results */
+  const res=document.getElementById('results');
+  res.style.display='block';
+  res.innerHTML=`
+    <div class="export-row">
+      <button class="btn-exp" onclick="exportCSV('violations')">⬇ Export Violations CSV</button>
+      <button class="btn-exp" onclick="exportCSV('all')">⬇ Export Full Report CSV</button>
+      <button class="btn-exp" style="border-color:var(--purple);color:var(--purple)" onclick="toggleExemptionsView()">✦ View All Exemptions</button>
+    </div>
+
+    <!-- All Exemptions Summary Panel -->
+    <div id="all-exemptions-panel" style="display:none;margin-bottom:24px">
+      <div style="background:rgba(167,139,250,.07);border:1px solid rgba(167,139,250,.25);border-radius:var(--radius);padding:18px 20px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
+          <span style="font-size:13px;font-weight:700;color:var(--purple)">✦ All Exemptions — ${monthName}</span>
+          <button onclick="toggleExemptionsView()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1">×</button>
+        </div>
+        <div id="all-exemptions-body"></div>
+      </div>
+    </div>
+
+    <div class="sh"><h2>🏠 Permanent WFH</h2><span class="cbadge cyan">${permWFHList.length}</span></div>
+    <div class="legend">
+      <span class="li"><span class="dot c"></span>Policy-exempt · WFH restrictions do not apply · Counts shown for audit visibility only · Use <strong>🏠 Mark Perm</strong> on any row below to add employees here</span>
+    </div>
+    ${buildPermTable('perm',permWFHList,allPMs,year,month)}
+
+    <div class="sh"><h2>⚠ Policy Violations</h2><span class="cbadge red">${violators.length}</span></div>
+    <div class="legend">
+      <span class="li"><span class="dot r"></span>Unexcused WFH exceeds the ${maxCompliantSoFar}-day limit · Click <strong>+ Exemption</strong> on any row to add a PM approval</span>
+    </div>
+    ${buildTable('viol',violators,maxCompliantSoFar,allPMs,year,month)}
+
+    <div class="sh"><h2>✦ Exemption-Resolved</h2><span class="cbadge purple">${exempted.length}</span></div>
+    <div class="legend">
+      <span class="li"><span class="dot p"></span>Originally over limit · PM-approved days bring them compliant · Exemptions travel with this file when saved</span>
+    </div>
+    ${buildTable('exempt',exempted,maxCompliantSoFar,allPMs,year,month)}
+
+    <div class="sh"><h2>✓ Compliant</h2><span class="cbadge green">${compliant.length}</span></div>
+    ${buildTable('comp',compliant,maxCompliantSoFar,allPMs,year,month)}
+  `;
+
+  attachListeners();
+}
+
+/* ══════════════════════════════════════════════
+   TABLE BUILDER
+══════════════════════════════════════════════ */
+function buildTable(id, list, maxAllowed, allPMs, year, month) {
+  const unassignedInList=list.filter(p=>!p.pm||p.pm==='-').length;
+  const banner=unassignedInList>0
+    ?`<div class="no-pm-banner">⚠ <strong>${unassignedInList}</strong> ${unassignedInList===1?'person has':'people have'} no Project Manager — filter below to isolate and update.</div>`:'';
+
+  return `${banner}
+    <div class="pm-filters">
+      <button class="pmf active" data-tbl="${id}" data-pm="all">All PMs</button>
+      ${allPMs.filter(p=>p!=='__UNASSIGNED__').map(pm=>
+        `<button class="pmf" data-tbl="${id}" data-pm="${pm}">${pm.split(' ').slice(0,2).join(' ')}</button>`
+      ).join('')}
+      ${allPMs.includes('__UNASSIGNED__')&&unassignedInList>0
+        ?`<button class="pmf unassigned" data-tbl="${id}" data-pm="__UNASSIGNED__">⚠ PM Not Assigned (${unassignedInList})</button>`:''}
+    </div>
+    <div class="search-row">
+      <input class="si" data-tbl="${id}" placeholder="Search by name, ID, project…" />
+      <span class="row-count" id="rc-${id}">${list.length} people</span>
+    </div>
+    <div class="tw">
+      <table id="table-${id}">
+        <thead><tr>
+          <th style="width:30px">#</th>
+          <th>Employee</th>
+          <th>ID</th>
+          <th>Project</th>
+          <th style="text-align:center" data-tip="Total WFH days logged this month">WFH</th>
+          <th style="text-align:center" data-tip="PM-approved days deducted · Effective WFH shown below">Approved / Effective</th>
+          <th style="text-align:center" data-tip="Excess WFH after approved days, vs ${maxAllowed}-day cap">Excess</th>
+          <th style="text-align:center">Office</th>
+          <th style="text-align:center">Leave</th>
+          <th>PM</th>
+          <th>Status</th>
+          <th style="width:110px">Exemption</th>
+          <th style="width:100px">Perm WFH</th>
+        </tr></thead>
+        <tbody>
+          ${list.map((p,i)=>{
+            const pmMissing=!p.pm||p.pm==='-';
+            const pmKey=pmMissing?'__UNASSIGNED__':p.pm;
+            const pmDisplay=pmMissing?`<span class="pm-unassigned">⚠ Not assigned</span>`:p.pm;
+            const wfhColor=p.excess>0?'var(--red)':p.home===maxAllowed?'var(--amber)':'var(--green)';
+            const exs=getExemptions(p.empId,year,month);
+            const hasEx=exs.length>0;
+            let statusPill;
+            if(p.excess>0)              statusPill=`<span class="pill viol">⚠ +${p.excess} excess</span>`;
+            else if(hasEx)              statusPill=`<span class="pill exempt">✦ Exemption applied</span>`;
+            else if(p.home===maxAllowed)statusPill=`<span class="pill warn">● At limit</span>`;
+            else                        statusPill=`<span class="pill ok">✓ OK</span>`;
+            return `<tr class="dr" data-name="${p.name.toLowerCase()}" data-id="${p.empId.toLowerCase()}" data-proj="${p.project.toLowerCase()}" data-pm="${pmKey}" data-tbl="${id}">
+              <td class="mono muted-t">${i+1}</td>
+              <td class="name-cell">${p.name}</td>
+              <td class="mono muted-t">${p.empId||'—'}</td>
+              <td style="font-size:11px;color:var(--muted);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.project}">${p.project||'—'}</td>
+              <td style="text-align:center">
+                <div class="wfh-cell">
+                  <span class="wfh-main" style="color:${wfhColor}">${p.home}</span>
+                </div>
+              </td>
+              <td style="text-align:center">
+                ${hasEx
+                  ? `<div class="wfh-cell">
+                      <span style="font-family:var(--mono);font-size:11px;color:var(--purple);font-weight:700">−${p.approved}d approved</span>
+                      <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:${p.effectiveHome>maxAllowed?'var(--red)':p.effectiveHome===maxAllowed?'var(--amber)':'var(--green)'}">${p.effectiveHome} effective</span>
+                     </div>`
+                  : `<span style="font-family:var(--mono);font-size:12px;color:var(--muted)" data-tip="Cap so far: ${maxAllowed} days">${p.home}/${maxAllowed}</span>`}
+              </td>
+              <td style="text-align:center">
+                ${p.excess>0?`<span class="excess">+${p.excess}</span>`:`<span style="font-family:var(--mono);font-size:11px;color:var(--muted)">—</span>`}
+              </td>
+              <td style="text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)">${p.office}</td>
+              <td style="text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)">${p.leave}</td>
+              <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${!p.pm||p.pm==='-'?'Not assigned':p.pm}">${pmDisplay}</td>
+              <td>${statusPill}</td>
+              <td>
+                <div style="display:flex;flex-direction:column;gap:4px">
+                  <button class="btn-open-ex ${hasEx?'has-ex':''}" data-empid="${p.empId}" data-empname="${p.name}" data-tbl="${id}" onclick="toggleExPanel(this,'${p.empId}','${p.name.replace(/'/g,"\\'")}',${year},${month})">
+                    ${hasEx?`✦ ${exs.length} exemption${exs.length>1?'s':''}`:'+ Exemption'}
+                  </button>
+                  ${hasEx ? exs.map(e=>`
+                    <div style="font-size:10px;background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.2);border-radius:4px;padding:3px 7px;color:var(--purple);line-height:1.4">
+                      <span style="font-weight:700">${escHtml(e.reason)}</span> · −${e.days}d
+                      ${e.fromDate||e.toDate ? `<br><span style="color:var(--muted)">${e.fromDate||'?'} → ${e.toDate||'?'}</span>` : ''}
+                    </div>`).join('') : ''}
+                </div>
+              </td>
+              <td>
+                <button class="btn-perm" onclick="markPermWFH('${p.empId}','${p.name.replace(/'/g,"\\'")}',${year},${month})"
+                  data-tip="Mark as Permanent WFH — removes from compliance checks">
+                  🏠 Mark Perm
+                </button>
+              </td>
+            </tr>
+            <tr class="ex-row" id="ex-panel-${p.empId}" style="display:none">
+              <td colspan="15">${buildExPanel(p.empId,p.name,year,month)}</td>
+            </tr>`;
+          }).join('')}
+          ${list.length===0?`<tr><td colspan="15" style="text-align:center;padding:24px;color:var(--muted)">No records in this category</td></tr>`:''}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   EXEMPTION PANEL
+══════════════════════════════════════════════ */
+function buildExPanel(empId, empName, year, month) {
+  const exs=getExemptions(empId,year,month);
+  const monthName=new Date(year,month,1).toLocaleDateString('en-IN',{month:'long',year:'numeric'});
+  return `<div class="ex-panel">
+    <div class="ex-panel-title">PM Exemptions for ${empName} — ${monthName}</div>
+    ${exs.length>0?`<div class="ex-list" id="ex-list-${empId}">
+      ${exs.map((e,i)=>`<div class="ex-item" id="ex-item-${empId}-${i}">
+        <div class="ex-item-body">
+          <div class="ex-item-reason">${escHtml(e.reason)}</div>
+          <div class="ex-item-meta">
+            ${e.fromDate||e.toDate?`📅 ${e.fromDate||'?'} → ${e.toDate||'?'} &nbsp;·&nbsp; `:``}
+            Added by <strong>${escHtml(e.addedBy)}</strong> on ${e.addedOn}
+          </div>
+        </div>
+        <div class="ex-item-days" data-tip="Approved days deducted from violation count">−${e.days}d</div>
+        <button class="btn-del-ex" onclick="deleteExemption('${empId}',${i},${year},${month})">✕ Remove</button>
+      </div>`).join('')}
+    </div>`:`<div style="font-size:12px;color:var(--muted);margin-bottom:4px">No exemptions yet for this employee this month.</div>`}
+    <div class="ex-fields" id="ex-form-${empId}">
+      <div class="ex-field">
+        <label>Reason</label>
+        <input class="ex-input wide" id="exr-${empId}" placeholder="e.g. Sick leave, Medical appointment…" />
+      </div>
+      <div class="ex-field">
+        <label>Approved Days</label>
+        <input class="ex-input narrow" id="exd-${empId}" type="number" min="1" max="31" placeholder="3" />
+      </div>
+      <div class="ex-field">
+        <label>From Date</label>
+        <input class="ex-input date" id="exf-${empId}" type="date" />
+      </div>
+      <div class="ex-field">
+        <label>To Date</label>
+        <input class="ex-input date" id="ext-${empId}" type="date" />
+      </div>
+      <div class="ex-field">
+        <label>Your Name (PM)</label>
+        <input class="ex-input" id="expm-${empId}" placeholder="PM name" style="width:150px" />
+      </div>
+      <div class="ex-field" style="justify-content:flex-end;padding-bottom:1px">
+        <button class="btn-add-ex" onclick="addExemption('${empId}','${empName.replace(/'/g,"\\'")}',${year},${month})">✦ Save Exemption</button>
+        <button class="btn-cancel-ex" onclick="toggleExPanel(null,'${empId}','',0,0,true)" style="margin-top:4px">Cancel</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function toggleExPanel(btn, empId, empName, year, month, forceClose=false) {
+  const row=document.getElementById(`ex-panel-${empId}`);
+  if(!row) return;
+  const isOpen=row.style.display!=='none';
+  if(isOpen||forceClose){
+    row.style.display='none';
+  } else {
+    row.querySelector('td').innerHTML=buildExPanel(empId,empName,year,month);
+    row.style.display='';
+    // Pre-fill PM name if stored in sessionStorage
+    const pmInput=document.getElementById(`expm-${empId}`);
+    if(pmInput&&sessionStorage.getItem('lastPMName')) pmInput.value=sessionStorage.getItem('lastPMName');
+  }
+}
+
+async function addExemption(empId, empName, year, month) {
+  const reason   = (document.getElementById(`exr-${empId}`)||{}).value||'';
+  const days     = parseInt((document.getElementById(`exd-${empId}`)||{}).value||'0');
+  const fromDate = (document.getElementById(`exf-${empId}`)||{}).value||'';
+  const toDate   = (document.getElementById(`ext-${empId}`)||{}).value||'';
+  const addedBy  = (document.getElementById(`expm-${empId}`)||{}).value||'PM';
+
+  if (!reason.trim()) { alert('Please enter a reason.'); return; }
+  if (!days || days < 1) { alert('Please enter a valid number of approved days (≥ 1).'); return; }
+
+  // Disable the save button while saving
+  const saveBtn = document.querySelector(`#ex-form-${empId} .btn-add-ex`);
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = '⟳ Saving…'; }
+
+  sessionStorage.setItem('lastPMName', addedBy);
+
+  const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
+  const addedOn  = nowIST().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const entry    = { reason:reason.trim(), days, fromDate, toDate, addedBy:addedBy.trim()||'PM', addedOn };
+
+  // Write to Sheet FIRST — wait for confirmation before doing anything else
+  await sheetPost({ action:'addExemption', empId, empName, monthKey,
+                    reason:entry.reason, days, fromDate, toDate,
+                    addedBy:entry.addedBy, addedOn });
+
+  // sheetPost already re-syncs _exemptions from Sheet after write
+  // so _exemptions is now up to date — just re-render
+  reRender();
+}
+
+async function deleteExemption(empId, idx, year, month) {
+  const key   = exemptionKey(empId, year, month);
+  const exs   = _exemptions[key] || [];
+  const entry = exs[idx];
+  if (!entry) return;
+
+  const monthKey = `${year}-${String(month+1).padStart(2,'0')}`;
+
+  // Write to Sheet FIRST — wait for confirmation
+  await sheetPost({ action:'deleteExemption', empId, monthKey,
+                    reason:entry.reason, days:entry.days,
+                    addedBy:entry.addedBy, addedOn:entry.addedOn });
+
+  // sheetPost already re-syncs — just re-render
+  reRender();
+}
+
+function reRender() {
+  if(!_result) return;
+
+  // Snapshot current filter + search state before re-render wipes the DOM
+  const savedPm     = JSON.parse(JSON.stringify(_activePm));
+  const savedSearch = {};
+  document.querySelectorAll('.si[data-tbl]').forEach(el => {
+    savedSearch[el.dataset.tbl] = el.value;
+  });
+
+  const {headers, rows} = _result._raw;
+  const result = analyse(headers, rows);
+  result._raw  = _result._raw;
+  render(result);
+
+  // Restore filter state
+  _activePm = savedPm;
+  ['viol','exempt','comp','perm'].forEach(tbl => {
+    // Restore active PM button
+    const pm = savedPm[tbl] || 'all';
+    document.querySelectorAll(`.pmf[data-tbl="${tbl}"]`).forEach(b => {
+      b.classList.toggle('active', b.dataset.pm === pm);
+    });
+    // Restore search text and re-filter
+    const searchEl = document.querySelector(`.si[data-tbl="${tbl}"]`);
+    if(searchEl && savedSearch[tbl]) {
+      searchEl.value = savedSearch[tbl];
+    }
+    filterTable(tbl);
+  });
+}
+
+/* ══════════════════════════════════════════════
+   PERMANENT WFH TABLE
+══════════════════════════════════════════════ */
+function buildPermTable(id, list, allPMs, year, month) {
+  const unassignedInList=list.filter(p=>!p.pm||p.pm==='-').length;
+  const banner=unassignedInList>0
+    ?`<div class="no-pm-banner">⚠ <strong>${unassignedInList}</strong> ${unassignedInList===1?'person has':'people have'} no Project Manager — filter below to isolate and update.</div>`:'';
+
+  return `${banner}
+    <div class="pm-filters">
+      <button class="pmf active" data-tbl="${id}" data-pm="all">All PMs</button>
+      ${allPMs.filter(p=>p!=='__UNASSIGNED__').map(pm=>
+        `<button class="pmf" data-tbl="${id}" data-pm="${pm}">${pm.split(' ').slice(0,2).join(' ')}</button>`
+      ).join('')}
+      ${allPMs.includes('__UNASSIGNED__')&&unassignedInList>0
+        ?`<button class="pmf unassigned" data-tbl="${id}" data-pm="__UNASSIGNED__">⚠ PM Not Assigned (${unassignedInList})</button>`:''}
+    </div>
+    <div class="search-row">
+      <input class="si" data-tbl="${id}" placeholder="Search by name, ID, project…" />
+      <span class="row-count" id="rc-${id}">${list.length} people</span>
+    </div>
+    <div class="tw">
+      <table id="table-${id}">
+        <thead><tr>
+          <th style="width:30px">#</th>
+          <th>Employee</th>
+          <th>ID</th>
+          <th>Project</th>
+          <th style="text-align:center" data-tip="Shown for audit — no policy limits apply">WFH</th>
+          <th style="text-align:center">Office</th>
+          <th style="text-align:center">Leave</th>
+          <th style="text-align:center">Total (hrs)</th>
+          <th>PM</th>
+          <th>Status</th>
+          <th>Designated By</th>
+          <th style="width:90px">Action</th>
+        </tr></thead>
+        <tbody>
+          ${list.length===0
+            ? `<tr><td colspan="12" style="text-align:center;padding:24px;color:var(--muted)">No permanent WFH employees designated yet. Use the <strong>🏠 Mark Perm</strong> button on any employee in the tables above.</td></tr>`
+            : list.map((p,i)=>{
+              const pmMissing=!p.pm||p.pm==='-';
+              const pmKey=pmMissing?'__UNASSIGNED__':p.pm;
+              const pmDisplay=pmMissing?`<span class="pm-unassigned">⚠ Not assigned</span>`:p.pm;
+              const rec=p.permRecord||{};
+              return `<tr class="dr perm-row" data-name="${p.name.toLowerCase()}" data-id="${p.empId.toLowerCase()}" data-proj="${p.project.toLowerCase()}" data-pm="${pmKey}" data-tbl="${id}">
+                <td class="mono muted-t">${i+1}</td>
+                <td class="name-cell" style="color:var(--muted)">${p.name}</td>
+                <td class="mono muted-t">${p.empId||'—'}</td>
+                <td style="font-size:11px;color:var(--muted);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${p.project}">${p.project||'—'}</td>
+                <td style="text-align:center;font-family:var(--mono);font-size:13px;font-weight:700;color:var(--muted)">${p.home}</td>
+                <td style="text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)">${p.office}</td>
+                <td style="text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)">${p.leave}</td>
+                <td style="text-align:center;font-family:var(--mono);font-size:12px;color:var(--muted)">${p.total}</td>
+                <td style="font-size:11px;max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${!p.pm||p.pm==='-'?'Not assigned':p.pm}">${pmDisplay}</td>
+                <td><span class="pill perm">🏠 Policy Exempt</span></td>
+                <td style="font-size:11px;color:var(--muted)">
+                  ${rec.addedBy?`<strong style="color:var(--cyan)">${escHtml(rec.addedBy)}</strong><br><span style="font-size:10px">${rec.addedOn||''}</span>`:'—'}
+                </td>
+                <td>
+                  <button class="btn-revoke-perm" onclick="revokePermWFH('${p.empId}')"
+                    data-tip="Remove Permanent WFH — employee returns to compliance tracking">
+                    ✕ Revoke
+                  </button>
+                </td>
+              </tr>`;
+            }).join('')}
+        </tbody>
+      </table>
+    </div>`;
+}
+
+async function markPermWFH(empId, empName, year, month) {
+  const pmName = sessionStorage.getItem('lastPMName')||'';
+  const by = prompt(`Mark "${empName}" as Permanent WFH?\n\nThis removes them from all compliance checks.\n\nEnter your name (PM):`, pmName||'');
+  if (by === null) return;
+
+  const addedOn = nowIST().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
+  const rec     = { name:empName, addedBy:by.trim()||'PM', addedOn };
+
+  if (by.trim()) sessionStorage.setItem('lastPMName', by.trim());
+
+  // Write to Sheet FIRST — wait for confirmation
+  await sheetPost({ action:'setPermWFH', empId, empName,
+                    addedBy:rec.addedBy, addedOn });
+
+  // sheetPost re-syncs _permWFH — just re-render
+  reRender();
+}
+
+async function revokePermWFH(empId) {
+  const rec = getPermRecord(empId);
+  if (!rec) return;
+  if (!confirm(`Remove Permanent WFH designation for "${rec.name}"?\n\nThey will return to normal compliance tracking.`)) return;
+
+  // Write to Sheet FIRST — wait for confirmation
+  await sheetPost({ action:'revokePermWFH', empId });
+
+  // sheetPost re-syncs — just re-render
+  reRender();
+}
+
+/* ── Permanent WFH tally in reload bar ── */
+function updatePermTally() {
+  const count = Object.keys(_permWFH).length;
+  const el    = document.getElementById('perm-tally');
+  const sep   = document.getElementById('perm-tally-sep');
+  if (count > 0) {
+    el.textContent    = `${count} permanent WFH`;
+    el.style.display  = 'inline-flex';
+    sep.style.display = 'block';
+  } else {
+    el.style.display  = 'none';
+    sep.style.display = 'none';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   VIEW ALL EXEMPTIONS PANEL
+══════════════════════════════════════════════ */
+function toggleExemptionsView() {
+  const panel = document.getElementById('all-exemptions-panel');
+  if (!panel) return;
+  if (panel.style.display === 'none') {
+    renderAllExemptions();
+    panel.style.display = 'block';
+  } else {
+    panel.style.display = 'none';
+  }
+}
+
+function renderAllExemptions() {
+  if (!_result) return;
+  const { year, month, violators, exempted, compliant, permWFHList } = _result;
+  const allPeople = [...violators, ...exempted, ...compliant, ...permWFHList];
+  const monthKey  = `${year}-${String(month+1).padStart(2,'0')}`;
+  const body      = document.getElementById('all-exemptions-body');
+  if (!body) return;
+
+  // Collect all people who have exemptions this month
+  const withEx = allPeople.filter(p => getExemptions(p.empId, year, month).length > 0);
+
+  if (withEx.length === 0) {
+    body.innerHTML = `<div style="font-size:12px;color:var(--muted);text-align:center;padding:16px">No exemptions have been added for this month yet.</div>`;
+    return;
+  }
+
+  body.innerHTML = `
+    <table style="width:100%;border-collapse:collapse;font-size:12px">
+      <thead>
+        <tr style="background:var(--surface)">
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border)">Employee</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border)">Reason</th>
+          <th style="padding:8px 10px;text-align:center;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border)">Approved Days</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border)">Duration</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border)">Added By</th>
+          <th style="padding:8px 10px;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);border-bottom:1px solid var(--border)">Added On</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${withEx.map(p => {
+          const exs = getExemptions(p.empId, year, month);
+          return exs.map((e, i) => `
+            <tr style="border-bottom:1px solid rgba(36,63,92,.4)">
+              ${i === 0
+                ? `<td style="padding:8px 10px;vertical-align:top;font-weight:600;color:var(--text)" rowspan="${exs.length}">
+                    ${p.name}<br>
+                    <span style="font-size:10px;color:var(--muted);font-family:var(--mono)">${p.empId||''}</span>
+                  </td>`
+                : ''}
+              <td style="padding:8px 10px;color:var(--purple);font-weight:600">${escHtml(e.reason)}</td>
+              <td style="padding:8px 10px;text-align:center;font-family:var(--mono);font-weight:700;color:var(--accent)">−${e.days}d</td>
+              <td style="padding:8px 10px;font-size:11px;color:var(--muted)">
+                ${e.fromDate && e.toDate
+                  ? `📅 ${e.fromDate} → ${e.toDate}`
+                  : e.fromDate ? `From ${e.fromDate}`
+                  : e.toDate   ? `Until ${e.toDate}`
+                  : '<span style="color:var(--muted)">—</span>'}
+              </td>
+              <td style="padding:8px 10px;font-size:11px;color:var(--text)">${escHtml(e.addedBy)}</td>
+              <td style="padding:8px 10px;font-size:11px;color:var(--muted)">${e.addedOn}</td>
+            </tr>`
+          ).join('');
+        }).join('')}
+      </tbody>
+    </table>
+    <div style="font-size:11px;color:var(--muted);margin-top:10px;text-align:right">
+      ${withEx.reduce((s,p)=>s+getExemptions(p.empId,year,month).length,0)} exemption(s) across ${withEx.length} employee(s)
+    </div>`;
+}
+
+
+function attachListeners() {
+  document.querySelectorAll('.pmf').forEach(btn=>{
+    btn.addEventListener('click',function(){
+      const tbl=this.dataset.tbl;
+      document.querySelectorAll(`.pmf[data-tbl="${tbl}"]`).forEach(b=>b.classList.remove('active'));
+      this.classList.add('active');
+      _activePm[tbl]=this.dataset.pm;
+      filterTable(tbl);
+    });
+  });
+  document.querySelectorAll('.si').forEach(inp=>{
+    inp.addEventListener('input',function(){ filterTable(this.dataset.tbl); });
+  });
+}
+
+function filterTable(tbl) {
+  const inp=document.querySelector(`.si[data-tbl="${tbl}"]`);
+  const pm=_activePm[tbl]||'all';
+  const q=inp?inp.value.toLowerCase():'';
+  let visible=0;
+  document.querySelectorAll(`#table-${tbl} tbody .dr`).forEach(r=>{
+    const matchQ=!q||r.dataset.name.includes(q)||r.dataset.id.includes(q)||r.dataset.proj.includes(q);
+    const matchPm=pm==='all'||r.dataset.pm===pm;
+    const show=matchQ&&matchPm;
+    r.style.display=show?'':'none';
+    // Also hide the ex-panel row if parent is hidden
+    const nextRow=r.nextElementSibling;
+    if(nextRow&&nextRow.classList.contains('ex-row')) nextRow.style.display=show?nextRow.style.display:'none';
+    if(show) visible++;
+  });
+  const rc=document.getElementById(`rc-${tbl}`);
+  if(rc) rc.textContent=`${visible} people`;
+}
+
+/* ══════════════════════════════════════════════
+   EXEMPTION TALLY IN RELOAD BAR
+══════════════════════════════════════════════ */
+function updateExemptionTally(year, month) {
+  const key   = `|${year}-${String(month+1).padStart(2,'0')}`;
+  const total = Object.keys(_exemptions).filter(k=>k.endsWith(key))
+                      .reduce((s,k)=>s+(_exemptions[k]||[]).length, 0);
+  const el    = document.getElementById('exemption-tally');
+  const sep   = document.getElementById('ex-tally-sep');
+  if (total > 0) {
+    el.textContent    = `${total} exemption${total>1?'s':''} saved`;
+    el.style.display  = 'inline-flex';
+    sep.style.display = 'block';
+  } else {
+    el.style.display  = 'none';
+    sep.style.display = 'none';
+  }
+}
+
+/* ══════════════════════════════════════════════
+   BUNDLE SAVE  — rewrites the HTML with embedded exemptions
+══════════════════════════════════════════════ */
+function saveBundle() {
+  // Serialize current Sheet URL into a standalone offline copy
+  // (useful as a backup / to share with someone who can't access the Sheet)
+  let src = document.documentElement.outerHTML;
+  // Embed current Sheet URL so the exported file auto-connects
+  src = src.replace(
+    /const SHEET_URL = '.*?';/,
+    `const SHEET_URL = '${SHEET_URL}';`
+  );
+  const blob = new Blob([src], {type:'text/html'});
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  const now  = nowIST();
+  a.download = `WFH-Checker-${now.getFullYear()}${String(now.getMonth()+1).padStart(2,'0')}.html`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+/* ══════════════════════════════════════════════
+   EXPORT CSV
+══════════════════════════════════════════════ */
+function exportCSV(mode) {
+  if (!_result) return;
+  const { violators, exempted, compliant, permWFHList,
+          maxCompliantSoFar, effectiveMonthlyCap, now, year, month } = _result;
+
+  const taggedList = [
+    ...violators.map(p   => ({ ...p, _table: 'Violation' })),
+    ...exempted.map(p    => ({ ...p, _table: 'Exemption Resolved' })),
+    ...compliant.map(p   => ({ ...p, _table: 'Compliant' })),
+    ...permWFHList.map(p => ({ ...p, _table: 'Permanent WFH' })),
+  ];
+  const list = mode === 'violations'
+    ? taggedList.filter(p => p._table === 'Violation')
+    : taggedList;
+
+  const hdrs = [
+    '#', 'Table', 'Employee ID', 'Name', 'Project',
+    'WFH Days', 'PM Approved Days', 'Effective WFH',
+    'Cap So Far', 'Excess', 'Office', 'Leave (hrs)', 'Total (hrs)',
+    'Project Manager', 'PM Email',
+    'Exemption - Reason', 'Exemption - Days',
+    'Exemption - From', 'Exemption - To', 'Exemption - Added By',
+    'Perm WFH Designated By', 'Status'
+  ];
+
+  const dataRows = list.map((p, i) => {
+    const exs     = getExemptions(p.empId, year, month);
+    const permRec = getPermRecord(p.empId);
+    const isPerm  = isPermWFH(p.empId);
+    const exRow   = exs[0] || {};
+    const base = [
+      i+1, p._table, p.empId||'', p.name, p.project||'',
+      p.home,
+      isPerm ? 'N/A' : (p.approved||0),
+      isPerm ? 'N/A' : (p.effectiveHome ?? p.home),
+      isPerm ? 'N/A' : maxCompliantSoFar,
+      isPerm ? 'N/A' : (p.excess>0 ? p.excess : 0),
+      p.office, p.leave, p.total,
+      (!p.pm||p.pm==='-') ? 'NOT ASSIGNED' : p.pm,
+      p.pmEmail||'',
+      exRow.reason||'', exRow.days||'',
+      exRow.fromDate||'', exRow.toDate||'', exRow.addedBy||'',
+      permRec ? permRec.addedBy+' ('+permRec.addedOn+')' : '',
+      isPerm              ? 'Permanent WFH - Policy Exempt'
+        : p.excess>0     ? 'Violation (+'+p.excess+')'
+        : p.approved>0   ? 'Exemption Applied'
+        : p.home===maxCompliantSoFar ? 'At Limit' : 'Compliant',
+    ];
+    const extras = exs.slice(1).map(ex => [
+      '','','','','','','','','','','','','','','',
+      ex.reason, ex.days, ex.fromDate||'', ex.toDate||'', ex.addedBy, '',''
+    ]);
+    return [base, ...extras];
+  }).flat();
+
+  const csv = [
+    ['# WFH Compliance Report - '+now.toLocaleDateString('en-IN',{month:'long',year:'numeric'})],
+    ['# Generated: '+now.toLocaleString('en-IN',{timeZone:'Asia/Calcutta'})+' IST'],
+    ['# Policy: Wed+Fri days | Cap so far: '+maxCompliantSoFar+' days | Full month cap: '+effectiveMonthlyCap+' days'],
+    ['# Violations:'+violators.length+' | Exemption-Resolved:'+exempted.length+' | Compliant:'+compliant.length+' | Perm WFH:'+permWFHList.length],
+    [], hdrs, ...dataRows
+  ].map(r=>r.map(c=>'"'+String(c??'').replace(/"/g,'""')+'"').join(',')).join('\n');
+
+  const a = document.createElement('a');
+  a.href = 'data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  a.download = mode==='violations' ? 'wfh_violations.csv' : 'wfh_full_report.csv';
+  a.click();
+}
+
+/* ══════════════════════════════════════════════
+   FILE PROCESSING
+══════════════════════════════════════════════ */
+function escHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function showError(msg){
+  const el=document.getElementById('error-box');
+  el.style.display='block';
+  el.innerHTML=`<strong>Error:</strong> ${String(msg).replace(/\n/g,'<br>')}`;
+}
+function clearUI(){
+  document.getElementById('error-box').style.display='none';
+  ['period-bar','week-strip','stats-bar','results'].forEach(id=>{ document.getElementById(id).style.display='none'; });
+}
+function setLoading(v){ document.getElementById('loader').style.display=v?'block':'none'; }
+
+function processFile(file) {
+  clearUI();
+  if(!file) return;
+  if(!file.name.match(/\.(xlsx|xls|csv)$/i)){ showError('Please upload an .xlsx, .xls, or .csv file.'); return; }
+  setLoading(true);
+
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      let headers,rows;
+      const parseSheet=(wb)=>{
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const raw=XLSX.utils.sheet_to_json(ws,{header:1,raw:false});
+        headers=raw[0].map(h=>String(h||'').trim());
+        rows=raw.slice(1).map(r=>{ const o={}; headers.forEach((h,i)=>{o[h]=r[i];}); return o; })
+          .filter(r=>Object.values(r).some(v=>v!==undefined&&v!==''));
+      };
+      if(file.name.match(/\.csv$/i)) parseSheet(XLSX.read(e.target.result,{type:'binary'}));
+      else                           parseSheet(XLSX.read(e.target.result,{type:'array',cellDates:true}));
+
+      if(!headers.length||rows.length===0) throw new Error('File appears empty.');
+
+      const result=analyse(headers,rows);
+      result._raw={headers,rows};
+      setLoading(false);
+      document.getElementById('upload-zone').style.display='none';
+      document.getElementById('reload-bar').style.display='flex';
+      document.getElementById('loaded-fname').textContent=file.name;
+      // Sync from Sheet first, then render with live data
+      const now=nowIST();
+      syncFromSheet(now.getFullYear(), now.getMonth()).then(()=>{
+        const r2=analyse(headers,rows);
+        r2._raw={headers,rows};
+        render(r2);
+      });
+    }catch(err){
+      setLoading(false);
+      showError(err.message||'Failed to process file.');
+    }
+  };
+  if(file.name.match(/\.csv$/i)) reader.readAsBinaryString(file);
+  else                           reader.readAsArrayBuffer(file);
+}
+
+/* ══════════════════════════════════════════════
+   DRAG & DROP / INPUT WIRING
+══════════════════════════════════════════════ */
+const zone=document.getElementById('upload-zone');
+zone.addEventListener('dragover', e=>{e.preventDefault();zone.classList.add('drag-over');});
+zone.addEventListener('dragleave',()=>zone.classList.remove('drag-over'));
+zone.addEventListener('drop',     e=>{e.preventDefault();zone.classList.remove('drag-over');processFile(e.dataTransfer.files[0]);});
+document.getElementById('file-input').addEventListener('change',function(){processFile(this.files[0]);});
+document.getElementById('file-input-reload').addEventListener('change',function(){
+  if(this.files[0]){
+    _activePm={viol:'all',exempt:'all',comp:'all',perm:'all'};
+    processFile(this.files[0]);
+    this.value='';
+    window.scrollTo({top:0,behavior:'smooth'});
+  }
+});
+</script>
+</body>
+</html>
